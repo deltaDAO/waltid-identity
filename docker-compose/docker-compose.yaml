@@ -103,6 +103,7 @@ services:
     environment:
       NUXT_PUBLIC_ISSUER_CALLBACK_URL: "http://$SERVICE_HOST:$DEV_WALLET_FRONTEND_PORT"
       NUXT_PUBLIC_DEMO_WALLET_URL: "http://$SERVICE_HOST:$DEMO_WALLET_FRONTEND_PORT"
+      NUXT_PUBLIC_AUTH_USE_KTORAUTHNZ: "true"
       PORT: $DEV_WALLET_FRONTEND_PORT
 
   web-portal:
@@ -157,6 +158,43 @@ services:
       - "${VALKEY_PORT:-6379}:6379"
     volumes:
       - valkey_data:/data
+
+  # Self-hosted Hanko OIDC provider (optional).
+  # Activate with: COMPOSE_PROFILES=identity,hanko
+  # Set HANKO_API_URL=http://hanko:8000 in .env when using this.
+  hanko:
+    image: ghcr.io/teamhanko/hanko:latest
+    profiles:
+      - hanko
+    command: serve all
+    restart: on-failure
+    depends_on:
+      hanko-postgres:
+        condition: service_healthy
+    environment:
+      CONFIG_FILE: /etc/hanko/config.yaml
+    volumes:
+      - ./hanko/config.yaml:/etc/hanko/config.yaml
+    ports:
+      - "${HANKO_PUBLIC_PORT:-8000}:8000"
+      - "${HANKO_ADMIN_PORT:-8001}:8001"
+
+  hanko-postgres:
+    image: postgres:16
+    profiles:
+      - hanko
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "hanko"]
+      interval: 5s
+      timeout: 1s
+      retries: 5
+    restart: always
+    environment:
+      POSTGRES_DB: hanko
+      POSTGRES_USER: hanko
+      POSTGRES_PASSWORD: hanko
+    volumes:
+      - hanko-db:/var/lib/postgresql/data
 
   postgres:
     image: postgres
@@ -286,3 +324,4 @@ volumes:
   wallet-api-db:
   vault_data:
   valkey_data:
+  hanko-db:

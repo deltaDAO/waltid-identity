@@ -7,9 +7,8 @@ import id.walt.commons.featureflag.CommonsFeatureCatalog
 import id.walt.commons.featureflag.FeatureManager.whenFeature
 import id.walt.commons.web.WebService
 import id.walt.crypto.keys.aws.WaltCryptoAws
-import id.walt.crypto.keys.azure.WaltCryptoAzure
 import id.walt.crypto.keys.oci.WaltCryptoOci
-import id.walt.did.dids.DidService
+import id.walt.did.helpers.WaltidServices
 import id.walt.webwallet.db.Db
 import id.walt.webwallet.web.Administration.configureAdministration
 import id.walt.webwallet.web.controllers.*
@@ -33,7 +32,7 @@ private val log = KotlinLogging.logger { }
 
 suspend fun main(args: Array<String>) {
     ServiceMain(
-        ServiceConfiguration("wallet", version = BuildConfig.VERSION), ServiceInitialization(
+        ServiceConfiguration("wallet"), ServiceInitialization(
             features = FeatureCatalog,
             featureAmendments = mapOf(
                 CommonsFeatureCatalog.openApiFeature to walletOpenApiPluginAmendment,
@@ -41,10 +40,9 @@ suspend fun main(args: Array<String>) {
             ),
             init = {
                 webWalletSetup()
-                DidService.minimalInit()
+                WaltidServices.minimalInit()
                 WaltCryptoOci.init()
                 WaltCryptoAws.init()
-                WaltCryptoAzure.init()
                 Db.start()
             },
             run = WebService(Application::webWalletModule).run()
@@ -94,6 +92,7 @@ fun Application.webWalletModule(withPlugins: Boolean = true) {
     dids()
     credentials()
     exchange();
+    presentations();
     { exchangeExternalSignatures() } whenFeature FeatureCatalog.externalSignatureEndpointsFeature
     history();
     { web3accounts() } whenFeature FeatureCatalog.web3
