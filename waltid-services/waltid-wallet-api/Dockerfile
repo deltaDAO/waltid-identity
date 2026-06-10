@@ -24,10 +24,12 @@ FROM gradle:latest AS build
 COPY --from=cache /home/gradle/cache_home /home/gradle/.gradle
 COPY --chown=gradle:gradle . /home/gradle/src
 WORKDIR /home/gradle/src/waltid-services/waltid-wallet-api
-# Build the fat JAR, Gradle also supports shadow
-# and boot JAR by default.
+# Allocate enough heap for shadowJar on this large monorepo.
+# --no-daemon avoids a second JVM process; --max-workers limits parallel tasks
+# so total memory stays within Colima's 8 GiB VM.
+ENV GRADLE_OPTS="-Xmx4g -Xms512m -XX:+HeapDumpOnOutOfMemoryError"
 RUN --mount=type=cache,target=/home/gradle/.gradle \
-    gradle buildFatJar --no-daemon --build-cache
+    gradle buildFatJar --no-daemon --build-cache --max-workers 2
 
 # Stage 3: Create the Runtime Image
 FROM amazoncorretto:22 AS runtime
