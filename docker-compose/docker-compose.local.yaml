@@ -1,0 +1,23 @@
+# Local build compose file — opt-in, does not activate automatically.
+#
+# Builds waltid-wallet-api from the local source so changes to the Kotlin
+# codebase (PresentationsController, FeatureCatalog, Main.kt, etc.) are
+# included without needing an upstream release image.
+#
+# Usage:
+#   # Build and start with local wallet-api:
+#   docker compose -f docker-compose.yaml -f docker-compose.local.yaml --profile identity up -d
+#
+#   # Rebuild wallet-api after code changes:
+#   docker compose -f docker-compose.yaml -f docker-compose.local.yaml build wallet-api
+#
+#   # With self-hosted Hanko:
+#   docker compose -f docker-compose.yaml -f docker-compose.local.yaml --profile identity --profile hanko up -d
+
+services:
+  wallet-api:
+    image: waltid/wallet-api:local
+    build:
+      context: ../
+      dockerfile: waltid-services/waltid-wallet-api/Dockerfile
+    pull_policy: never

@@ -72,7 +72,28 @@ Ensure you have the following tools installed:
 Before building locally, ensure the correct version is specified in the `.env` file.
 Update the `VERSION_TAG` variable to version `1.0.0-SNAPSHOT`
 
-### Build API Services Docker Images Locally (development)
+### Run with Local Source (docker-compose.local.yaml)
+
+Use `docker-compose.local.yaml` to build `wallet-api` directly from the local
+Kotlin source. This is required when you have local code changes that are not
+yet in a published image (e.g. the `PresentationsController` endpoint).
+
+The build uses the multi-stage `Dockerfile` at `waltid-services/waltid-wallet-api/Dockerfile`
+with the project root as build context. The first build takes several minutes;
+subsequent builds are fast due to Docker layer caching.
+
+```bash
+# Build and start (identity profile + local wallet-api):
+docker compose -f docker-compose.yaml -f docker-compose.local.yaml --profile identity up -d
+
+# Rebuild wallet-api after code changes:
+docker compose -f docker-compose.yaml -f docker-compose.local.yaml build wallet-api
+
+# With self-hosted Hanko:
+docker compose -f docker-compose.yaml -f docker-compose.local.yaml --profile identity --profile hanko up -d
+```
+
+### Build API Services Docker Images Locally (Gradle/Jib — development)
 
 API Services Docker Images are build with the ktor gradle plugin. This
 requires Java SDK 21 installed. You build the images by
