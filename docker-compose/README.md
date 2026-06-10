@@ -134,8 +134,9 @@ will start automatically:
 profiles to start the services for. The services are available with the following profiles:
 
 - **identity** - for all waltid-identity services (includes both `services` and `apps` profiles)
-- **services** - for API services (wallet-api, issuer-api, verifier-api, verifier-api2, vc-repo)
+- **services** - for API services (wallet-api, issuer-api, verifier-api, vc-repo)
 - **apps** - for web applications (waltid-demo-wallet, waltid-dev-wallet, web-portal)
+- **hanko** - for the self-hosted Hanko OIDC provider and its dedicated Postgres DB (see OIDC setup below)
 - **valkey** - for the Valkey/Redis service (required when using valkey for session storage in wallet-api)
 - **tse** - for the Hashicorp vault service, will be initialized with:
     - a transit secrets engine
@@ -149,7 +150,8 @@ profiles to start the services for. The services are available with the followin
 Profiles can be combined, e.g.:
 - `COMPOSE_PROFILES=identity,tse` - will start the waltid-identity services and the vault
 - `COMPOSE_PROFILES=identity,valkey` - will start the waltid-identity services with valkey for session storage
-- `COMPOSE_PROFILES=all` - will start all services including vault, valkey, and opa
+- `COMPOSE_PROFILES=identity,hanko` - will start the waltid-identity services with self-hosted Hanko OIDC
+- `COMPOSE_PROFILES=all` - will start all services including vault, valkey, hanko, and opa
 
 <sup>1</sup> - example output:
 
@@ -177,8 +179,9 @@ $ docker-compose down -v
 - Wallet API: [http://localhost:7001](http://localhost:7001)
 - Issuer API: [http://localhost:7002](http://localhost:7002)
 - Verifier API: [http://localhost:7003](http://localhost:7003)
-- Verifier API2: [http://localhost:7004](http://localhost:7004)
 - Valkey (Redis-compatible): `localhost:6379` (requires `--profile valkey` or `--profile all`)
+- Hanko Public API: [http://localhost:8000](http://localhost:8000) (requires `--profile hanko`)
+- Hanko Admin API: [http://localhost:8001](http://localhost:8001) (requires `--profile hanko`)
 - Hashicorp vault: [http://localhost:8200](http://localhost:8200)
 - Open Policy Agent: [http://localhost:8181](http://localhost:8181)
 
@@ -197,10 +200,38 @@ $ docker-compose down -v
     - `issuer-api/config`
 - verifier API:
     - `verifier-api/config`
-- verifier API2:
-  - `verifier-api2/config`
+- Hanko (self-hosted):
+    - `hanko/config.yaml` — server, database, passkey, and session settings
 - ingress:
     - `Caddyfile`
+
+## OIDC / Hanko Setup
+
+Authentication uses **ktor-authnz** with Hanko as the OIDC provider. See [OIDC_DEPLOYMENT_PLAN.md](../../OIDC_DEPLOYMENT_PLAN.md) for the full guide.
+
+**Minimum required env vars in `.env`:**
+
+```env
+HANKO_API_URL=https://YOUR_PROJECT_ID.hanko.io   # Hanko Cloud URL
+HANKO_CLIENT_ID=waltid-wallet
+HANKO_CLIENT_SECRET=<your-secret>
+```
+
+**Hanko Cloud (no extra profile):**
+```bash
+docker compose --profile identity up -d
+```
+
+**Self-hosted Hanko:**
+```bash
+# 1. Edit hanko/config.yaml — replace the placeholder secret
+# 2. Set in .env: HANKO_API_URL=http://hanko:8000  COMPOSE_PROFILES=identity,hanko
+docker compose --profile identity --profile hanko up -d
+# 3. Register the OIDC client once Hanko is running:
+curl -X POST http://localhost:8001/relying-parties \
+  -H "Content-Type: application/json" \
+  -d '{"id":"waltid-wallet","redirect_uris":["http://localhost:7104/wallet-api/auth/account/oidc/callback"],"origins":["http://localhost:7104"]}'
+```
 
 [//]: # (## Environment)
 
@@ -272,9 +303,6 @@ Make sure the ports are also updated in:
 - verifier-api/config
     - verifier-service.conf
     - web.conf
-- verifier-api2/config
-  - verifier-service.conf
-  - web.conf
 - wallet-api/config
     - web.conf
     - db.conf
