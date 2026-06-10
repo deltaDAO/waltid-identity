@@ -38,9 +38,6 @@ $ docker compose up
 *Note:* If you are facing issues with the containers, try running the following command to remove the existing
 containers and then run the
 above command again.
-
-### Stop the Services
-
 ```bash
 $ docker compose down
 ```
@@ -54,8 +51,6 @@ $ docker compose down -v
 *Note:*
 The version of the images pulled is controlled by the `VERSION_TAG` in the `.env` file. By default, it is set to latest,
 which pulls the most recent release of the Docker images.
-If you prefer to use a specific version, such as a past release, modify the `VERSION_TAG` in the `.env` file before
-pulling the images.
 
 ## Building and Running Services Locally
 
@@ -69,54 +64,23 @@ Ensure you have the following tools installed:
 
 ### Update the VERSION_TAG
 
-Before building locally, ensure the correct version is specified in the `.env` file.
-Update the `VERSION_TAG` variable to version `1.0.0-SNAPSHOT`
+Set `VERSION_TAG` in `docker-compose/.env` to the image tag you want to run.
 
 ### Run with Local Source (docker-compose.local.yaml)
 
 Use `docker-compose.local.yaml` to build `wallet-api` directly from the local
 Kotlin source. This is required when you have local code changes that are not
-yet in a published image (e.g. the `PresentationsController` endpoint).
-
-The build uses the multi-stage `Dockerfile` at `waltid-services/waltid-wallet-api/Dockerfile`
-with the project root as build context. The first build takes several minutes;
-subsequent builds are fast due to Docker layer caching.
+yet in a published image.
 
 ```bash
-# Build and start (identity profile + local wallet-api):
+# Build and start with local wallet-api
 docker compose -f docker-compose.yaml -f docker-compose.local.yaml --profile identity up -d
 
-# Rebuild wallet-api after code changes:
+# Rebuild wallet-api after code changes
 docker compose -f docker-compose.yaml -f docker-compose.local.yaml build wallet-api
 
-# With self-hosted Hanko:
-docker compose -f docker-compose.yaml -f docker-compose.local.yaml --profile identity --profile hanko up -d
-```
-
-### Build API Services Docker Images Locally (Gradle/Jib — development)
-
-API Services Docker Images are build with the ktor gradle plugin. This
-requires Java SDK 21 installed. You build the images by
-executing the commands:
-```shell
-$ cd waltid-identity/
-$
-$ nano docker-compose/.env # set variable VERSION_TAG=1.0.0-SNAPSHOT so the build version is used
-$
-$ ./gradlew jibDockerBuild # build docker images
-$
-$ docker image ls # verify image is build and published in local docker registry
-REPOSITORY            TAG              IMAGE ID       CREATED        SIZE
-waltid/issuer-api     1.0.0-SNAPSHOT   0d8752382eae   55 years ago   359MB
-waltid/issuer-api     latest           0d8752382eae   55 years ago   359MB
-waltid/verifier-api   1.0.0-SNAPSHOT   5ce8428d031a   55 years ago   353MB
-waltid/verifier-api   latest           5ce8428d031a   55 years ago   353MB
-waltid/wallet-api     1.0.0-SNAPSHOT   712427b1f532   55 years ago   575MB
-waltid/wallet-api     latest           712427b1f532   55 years ago   575MB
-<none>                <none>           7bab5e2240b9   55 years ago   306MB
-ktor-docker-image     latest           989205060031   55 years ago   377MB
-
-$
+# Start wallet + verifier only (plus dependencies)
+docker compose -f docker-compose.yaml -f docker-compose.local.yaml --profile wallet-verifier up -d
 ```
 
 ### Build the Docker Webapp Images Locally
@@ -155,9 +119,9 @@ will start automatically:
 profiles to start the services for. The services are available with the following profiles:
 
 - **identity** - for all waltid-identity services (includes both `services` and `apps` profiles)
+- **wallet-verifier** - starts wallet-api and verifier-api (plus dependencies like postgres and caddy)
 - **services** - for API services (wallet-api, issuer-api, verifier-api, vc-repo)
 - **apps** - for web applications (waltid-demo-wallet, waltid-dev-wallet, web-portal)
-- **hanko** - for the self-hosted Hanko OIDC provider and its dedicated Postgres DB (see OIDC setup below)
 - **valkey** - for the Valkey/Redis service (required when using valkey for session storage in wallet-api)
 - **tse** - for the Hashicorp vault service, will be initialized with:
     - a transit secrets engine
@@ -169,10 +133,10 @@ profiles to start the services for. The services are available with the followin
 - **all** - starts all services (equivalent to combining all profiles)
 
 Profiles can be combined, e.g.:
+- `COMPOSE_PROFILES=wallet-verifier` - will start wallet-api + verifier-api and required dependencies
 - `COMPOSE_PROFILES=identity,tse` - will start the waltid-identity services and the vault
 - `COMPOSE_PROFILES=identity,valkey` - will start the waltid-identity services with valkey for session storage
-- `COMPOSE_PROFILES=identity,hanko` - will start the waltid-identity services with self-hosted Hanko OIDC
-- `COMPOSE_PROFILES=all` - will start all services including vault, valkey, hanko, and opa
+- `COMPOSE_PROFILES=all` - will start all services including vault, valkey, and opa
 
 <sup>1</sup> - example output:
 
@@ -201,8 +165,6 @@ $ docker-compose down -v
 - Issuer API: [http://localhost:7002](http://localhost:7002)
 - Verifier API: [http://localhost:7003](http://localhost:7003)
 - Valkey (Redis-compatible): `localhost:6379` (requires `--profile valkey` or `--profile all`)
-- Hanko Public API: [http://localhost:8000](http://localhost:8000) (requires `--profile hanko`)
-- Hanko Admin API: [http://localhost:8001](http://localhost:8001) (requires `--profile hanko`)
 - Hashicorp vault: [http://localhost:8200](http://localhost:8200)
 - Open Policy Agent: [http://localhost:8181](http://localhost:8181)
 
@@ -221,8 +183,6 @@ $ docker-compose down -v
     - `issuer-api/config`
 - verifier API:
     - `verifier-api/config`
-- Hanko (self-hosted):
-    - `hanko/config.yaml` — server, database, passkey, and session settings
 - ingress:
     - `Caddyfile`
 
@@ -230,28 +190,17 @@ $ docker-compose down -v
 
 Authentication uses **ktor-authnz** with Hanko as the OIDC provider. See [OIDC_DEPLOYMENT_PLAN.md](../../OIDC_DEPLOYMENT_PLAN.md) for the full guide.
 
-**Minimum required env vars in `.env`:**
+**Configured Hanko Cloud env vars in `.env`:**
 
 ```env
-HANKO_API_URL=https://YOUR_PROJECT_ID.hanko.io   # Hanko Cloud URL
-HANKO_CLIENT_ID=waltid-wallet
-HANKO_CLIENT_SECRET=<your-secret>
+HANKO_API_URL=https://74b96159-f6f1-44dc-b39b-98380c67660f.hanko.io
+HANKO_CLIENT_ID=__not_used_for_token_login__
+HANKO_CLIENT_SECRET=__not_used_for_token_login__
 ```
 
-**Hanko Cloud (no extra profile):**
+**Wallet + verifier local startup (Hanko Cloud OIDC):**
 ```bash
-docker compose --profile identity up -d
-```
-
-**Self-hosted Hanko:**
-```bash
-# 1. Edit hanko/config.yaml — replace the placeholder secret
-# 2. Set in .env: HANKO_API_URL=http://hanko:8000  COMPOSE_PROFILES=identity,hanko
-docker compose --profile identity --profile hanko up -d
-# 3. Register the OIDC client once Hanko is running:
-curl -X POST http://localhost:8001/relying-parties \
-  -H "Content-Type: application/json" \
-  -d '{"id":"waltid-wallet","redirect_uris":["http://localhost:7104/wallet-api/auth/account/oidc/callback"],"origins":["http://localhost:7104"]}'
+docker compose --profile wallet-verifier up -d
 ```
 
 **Hanko JWT Token (programmatic / API access):**

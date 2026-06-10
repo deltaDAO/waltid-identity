@@ -11,8 +11,8 @@
 #   # Rebuild wallet-api after code changes:
 #   docker compose -f docker-compose.yaml -f docker-compose.local.yaml build wallet-api
 #
-#   # With self-hosted Hanko:
-#   docker compose -f docker-compose.yaml -f docker-compose.local.yaml --profile identity --profile hanko up -d
+#   # Wallet + verifier only (plus dependencies):
+#   docker compose -f docker-compose.yaml -f docker-compose.local.yaml --profile wallet-verifier up -d
 
 services:
   wallet-api:
@@ -20,4 +20,8 @@ services:
     build:
       context: ../
       dockerfile: waltid-services/waltid-wallet-api/Dockerfile
+      cache_from:
+        - type=local,src=.docker-cache/wallet-api
+      cache_to:
+        - type=local,dest=.docker-cache/wallet-api,mode=max
     pull_policy: never
