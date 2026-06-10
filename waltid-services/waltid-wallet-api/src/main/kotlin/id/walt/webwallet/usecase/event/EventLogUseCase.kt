@@ -11,6 +11,7 @@ import id.walt.webwallet.service.events.*
 import id.walt.webwallet.utils.JsonUtils
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.uuid.ExperimentalUuidApi
@@ -87,7 +88,9 @@ class EventLogUseCase(
 
     fun subjectData(credential: WalletCredential) = CredentialEventDataActor.Subject(
         subjectId = credential.parsedDocument?.let {
-            JsonUtils.tryGetData(it, "credentialSubject.id")?.jsonPrimitive?.content
+            JsonUtils.tryGetData(it, "credentialSubject.id")?.let { id ->
+                if (id is JsonPrimitive) id.content else null
+            }
         } ?: EventDataNotAvailable,
         subjectKeyType = EventDataNotAvailable,
     )
@@ -137,3 +140,4 @@ class EventLogUseCase(
         val logFilter: EventLogFilter,
     )
 }
+
