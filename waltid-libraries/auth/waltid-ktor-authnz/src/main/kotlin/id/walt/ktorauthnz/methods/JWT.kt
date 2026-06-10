@@ -3,6 +3,8 @@ package id.walt.ktorauthnz.methods
 import com.nimbusds.jose.JWSObject
 import com.nimbusds.jose.crypto.MACVerifier
 import id.walt.commons.web.JWTVerificationException
+import id.walt.crypto.keys.jwk.JwkKeyProvider
+import id.walt.crypto.utils.JwsUtils.decodeJws
 import id.walt.ktorauthnz.AuthContext
 import id.walt.ktorauthnz.accounts.identifiers.methods.JWTIdentifier
 import id.walt.ktorauthnz.amendmends.AuthMethodFunctionAmendments
@@ -14,19 +16,55 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.request.*
 import io.ktor.server.routing.*
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 object JWT : AuthenticationMethod("jwt") {
 
-    fun auth(jwt: String, config: JwtAuthConfiguration): JWTIdentifier {
-        // todo: handle others
-        val parsedJws = JWSObject.parse(jwt)
-        val jwtVerifier = MACVerifier(config.verifyKey)
+    private val keyProviderCache = mutableMapOf<String, JwkKeyProvider>()
+    private fun getJwkProvider(jwksUrl: String) = keyProviderCache.getOrPut(jwksUrl) { JwkKeyProvider(jwksUrl) }
 
-        authCheck(parsedJws.verify(jwtVerifier), JWTVerificationException())
-
-        val id = parsedJws.payload.toJSONObject()[config.identifyClaim] as String
-
+    suspend fun auth(jwt: String, config: JwtAuthConfiguration): JWTIdentifier {
+        val id = when {
+            config.jwksUrl != null -> authWithJwks(jwt, config)
+            config.verifyKey != null -> authWithHmac(jwt, config)
+            else -> error("JwtAuthConfiguration requires either 'jwksUrl' or 'verifyKey'")
+        }
         return JWTIdentifier(id)
+    }
+
+    private fun authWithHmac(jwt: String, config: JwtAuthConfiguration): String {
+        val parsedJws = JWSObject.parse(jwt)
+        authCheck(parsedJws.verify(MACVerifier(config.verifyKey)), JWTVerificationException())
+        return parsedJws.payload.toJSONObject()[config.identifyClaim] as String
+    }
+
+    private suspend fun authWithJwks(jwt: String, config: JwtAuthConfiguration): String {
+        val jwsParts = jwt.decodeJws()
+        val header = jwsParts.header
+        val payload = jwsParts.payload
+
+        val kid = header["kid"]?.jsonPrimitive?.content
+            ?: throw IllegalArgumentException("JWT header is missing 'kid'.")
+
+        val keyProvider = getJwkProvider(config.jwksUrl!!)
+        val key = keyProvider.getKey(kid).getOrThrow()
+
+        val verificationResult = key.verifyJws(jwt)
+        authCheck(verificationResult.isSuccess, JWTVerificationException())
+
+        config.issuer?.let { expectedIss ->
+            val iss = payload["iss"]?.jsonPrimitive?.content
+            require(iss == expectedIss) { "Invalid issuer: expected '$expectedIss', got '$iss'" }
+        }
+
+        val exp = payload["exp"]?.jsonPrimitive?.long ?: 0
+        require(Instant.fromEpochSeconds(exp) >= Clock.System.now()) { "JWT has expired." }
+
+        return payload[config.identifyClaim]?.jsonPrimitive?.content
+            ?: throw IllegalArgumentException("JWT is missing '${config.identifyClaim}' claim.")
     }
 
     override fun Route.registerAuthenticationRoutes(
@@ -47,6 +85,4 @@ object JWT : AuthenticationMethod("jwt") {
             call.handleAuthSuccess(session, authContext, id.resolveToAccountId())
         }
     }
-
-
 }

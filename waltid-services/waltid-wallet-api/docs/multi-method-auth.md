@@ -200,6 +200,56 @@ curl -X 'GET' \
 }
 ```
 
+### User 3 (logs in via Hanko JWT token — no browser redirect)
+```shell
+curl -X 'GET' \
+  'http://wallet.localhost:7001/wallet-api/wallet/accounts/wallets' \
+  -H 'accept: application/json'
+```
+```text
+Unauthorized (NoCredentials)
+```
+
+```shell
+# Obtain a Hanko session token via the Hanko API or SDK, then post it directly:
+curl -X 'POST' \
+  'http://wallet.localhost:7001/wallet-api/auth/account/jwt' \
+  -H 'Content-Type: text/plain' \
+  --data-raw 'eyJhbGciOiJSUzI1NiIsImtpZCI6IjEyMzQ1NiJ9...<hanko-session-jwt>'
+```
+```json
+{
+  "session_id": "c3d4e5f6-0011-2233-4455-667788990011",
+  "status": "SUCCESS",
+  "token": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "expiration": "2025-12-04T12:12:18.043226885Z"
+}
+```
+
+The wallet verifies the token signature against Hanko's JWKS, validates `iss` and `exp`, then resolves or creates a wallet account from the `sub` claim. The resulting account is identical to the one produced by the OIDC browser flow for the same Hanko user.
+
+```shell
+curl -X 'GET' \
+  'http://wallet.localhost:7001/wallet-api/wallet/accounts/wallets' \
+  -H 'accept: application/json'
+```
+```json
+{
+  "account": "f55d1a2b-3c4d-5e6f-7a8b-9c0d1e2f3a4b",
+  "wallets": [
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "Wallet of <hanko-user-sub>",
+      "createdOn": "2025-11-27T12:10:00.000Z",
+      "addedOn": "2025-11-27T12:10:00.000Z",
+      "permission": "ADMINISTRATE"
+    }
+  ]
+}
+```
+
+---
+
 ### Data that gets stored for this scenario:
 
 #### AuthnzAccountIdentifiers

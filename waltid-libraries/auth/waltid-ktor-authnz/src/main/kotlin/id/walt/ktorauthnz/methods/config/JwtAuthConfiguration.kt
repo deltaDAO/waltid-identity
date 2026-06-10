@@ -7,7 +7,9 @@ import kotlinx.serialization.Serializable
 @Serializable
 @SerialName("jwt-config")
 data class JwtAuthConfiguration(
-    val verifyKey: String,
+    val verifyKey: String? = null,
+    val jwksUrl: String? = null,
+    val issuer: String? = null,
     val identifyClaim: String = "sub",
 ) : AuthMethodConfiguration {
     override fun authMethod() = JWT

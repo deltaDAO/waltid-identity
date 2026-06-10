@@ -254,6 +254,19 @@ curl -X POST http://localhost:8001/relying-parties \
   -d '{"id":"waltid-wallet","redirect_uris":["http://localhost:7104/wallet-api/auth/account/oidc/callback"],"origins":["http://localhost:7104"]}'
 ```
 
+**Hanko JWT Token (programmatic / API access):**
+
+In addition to the browser-based OIDC flow, the wallet accepts Hanko session tokens posted directly — no browser redirect required. This is useful for CLI tools, backend services, or automated tests.
+
+```bash
+# Obtain a Hanko session token via the Hanko API or SDK, then:
+curl -X POST http://localhost:7001/wallet-api/auth/account/jwt \
+  -H "Content-Type: text/plain" \
+  --data-raw "<hanko-session-jwt>"
+```
+
+The wallet verifies the RS256 signature against Hanko's JWKS (`HANKO_API_URL/.well-known/jwks.json`), checks `iss` and `exp`, and creates or reuses the wallet account keyed on the `sub` claim. See [OIDC_DEPLOYMENT_PLAN.md](../../OIDC_DEPLOYMENT_PLAN.md) for the full JWT auth reference.
+
 [//]: # (## Environment)
 
 [//]: # ()
