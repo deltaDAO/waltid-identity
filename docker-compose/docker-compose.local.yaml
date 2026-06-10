@@ -1,96 +1,13 @@
-# Local build compose file — opt-in, does not activate automatically.
-#
-# Builds waltid-wallet-api from the local source so changes to the Kotlin
-# codebase (PresentationsController, FeatureCatalog, Main.kt, etc.) are
-# included without needing an upstream release image.
-# This file is self-contained for wallet-api local development and also starts
-# a local postgres dependency required by the default db.conf.
-#
-# Usage:
-#   # Build and start with local wallet-api:
-#   docker compose -f docker-compose-remote.yaml -f docker-compose.local.yaml --profile identity up -d
-#
-#   # Rebuild wallet-api after code changes:
-#   docker compose -f docker-compose-remote.yaml -f docker-compose.local.yaml build wallet-api
-#
-#   # Wallet + verifier only (plus dependencies):
-#   docker compose -f docker-compose-remote.yaml -f docker-compose.local.yaml --profile wallet-verifier up -d
-
 services:
   wallet-api:
     image: waltid/wallet-api:local
     build:
       context: ../
       dockerfile: waltid-services/waltid-wallet-api/Dockerfile
-      cache_from:
-        - type=local,src=.docker-cache/wallet-api
-      cache_to:
-        - type=local,dest=.docker-cache/wallet-api,mode=max
     pull_policy: never
-    depends_on:
-      postgres:
-        condition: service_healthy
     env_file:
       - .env
-    ports:
-      - "7001:7001"
+    extra_hosts:
+      - "${SERVICE_HOST:-host.docker.internal}:host-gateway"
     volumes:
       - ./wallet-api/config:/waltid-wallet-api/config
-      - ./wallet-api/data:/waltid-wallet-api/data
-
-  waltid-demo-wallet:
-    image: waltid/waltid-demo-wallet:local
-    build:
-      context: ../
-      dockerfile: waltid-applications/waltid-web-wallet/apps/waltid-demo-wallet/Dockerfile
-    pull_policy: never
-    depends_on:
-      - wallet-api
-    env_file:
-      - .env
-    environment:
-      NUXT_PUBLIC_ISSUER_CALLBACK_URL: "http://localhost:${DEMO_WALLET_FRONTEND_PORT}"
-      NUXT_PUBLIC_DEV_WALLET_URL: "http://localhost:${DEV_WALLET_FRONTEND_PORT}"
-      PORT: ${DEMO_WALLET_FRONTEND_PORT}
-    ports:
-      - "${DEMO_WALLET_FRONTEND_PORT}:${DEMO_WALLET_FRONTEND_PORT}"
-
-  waltid-dev-wallet:
-    image: waltid/waltid-dev-wallet:local
-    build:
-      context: ../
-      dockerfile: waltid-applications/waltid-web-wallet/apps/waltid-dev-wallet/Dockerfile
-    pull_policy: never
-    depends_on:
-      - wallet-api
-    env_file:
-      - .env
-    environment:
-      NUXT_PUBLIC_ISSUER_CALLBACK_URL: "http://localhost:${DEV_WALLET_FRONTEND_PORT}"
-      NUXT_PUBLIC_DEMO_WALLET_URL: "http://localhost:${DEMO_WALLET_FRONTEND_PORT}"
-      NUXT_PUBLIC_AUTH_USE_KTORAUTHNZ: "true"
-      PORT: ${DEV_WALLET_FRONTEND_PORT}
-    ports:
-      - "${DEV_WALLET_FRONTEND_PORT}:${DEV_WALLET_FRONTEND_PORT}"
-
-  postgres:
-    image: postgres
-    healthcheck:
-      test: [ "CMD", "pg_isready", "-q", "-U", "$DB_USERNAME" ]
-      interval: 5s
-      timeout: 1s
-      retries: 5
-    restart: always
-    env_file:
-      - .env
-    environment:
-      POSTGRES_DB: $DB_NAME
-      POSTGRES_USER: $DB_USERNAME
-      POSTGRES_PASSWORD: $DB_PASSWORD
-    volumes:
-      - wallet-api-db:/waltid-wallet-api/data
-    ports:
-      - $POSTGRES_DB_PORT:5432
-
-volumes:
-  wallet-api-db:
