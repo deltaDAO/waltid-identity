@@ -49,6 +49,7 @@ object PolicyManager {
             PresentationDefinitionPolicy(),
             DynamicPolicy(),
             StatusPolicy(),
+            ExternalEVPForwardPolicy(),
             VpRequiredCredentialsPolicy(),
         )
     }
