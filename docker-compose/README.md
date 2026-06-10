@@ -74,13 +74,13 @@ yet in a published image.
 
 ```bash
 # Build and start with local wallet-api
-docker compose -f docker-compose.yaml -f docker-compose.local.yaml --profile identity up -d
+docker compose -f docker-compose-remote.yaml -f docker-compose.local.yaml --profile identity up -d
 
 # Rebuild wallet-api after code changes
-docker compose -f docker-compose.yaml -f docker-compose.local.yaml build wallet-api
+docker compose -f docker-compose-remote.yaml -f docker-compose.local.yaml build wallet-api
 
 # Start wallet + verifier only (plus dependencies)
-docker compose -f docker-compose.yaml -f docker-compose.local.yaml --profile wallet-verifier up -d
+docker compose -f docker-compose-remote.yaml -f docker-compose.local.yaml --profile wallet-verifier up -d
 ```
 
 ### Build the Docker Webapp Images Locally
