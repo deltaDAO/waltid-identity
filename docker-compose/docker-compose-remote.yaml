@@ -42,6 +42,9 @@ services:
 
   verifier-api:
     image: ${IMAGE_PREFIX}waltid/verifier-api:${VERSION_TAG:-latest}
+    build:
+      context: ../
+      dockerfile: waltid-services/waltid-verifier-api/Dockerfile
     profiles:
       - wallet-verifier
       - services
@@ -63,6 +66,9 @@ services:
 
   verifier-api2:
     image: ${IMAGE_PREFIX}waltid/verifier-api2:${VERSION_TAG:-latest}
+    build:
+      context: ../
+      dockerfile: waltid-services/waltid-verifier-api2/Dockerfile
     profiles:
       - services
       - identity
