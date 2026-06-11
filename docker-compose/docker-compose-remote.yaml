@@ -42,7 +42,7 @@ services:
 
 
   verifier-api:
-    image: ${IMAGE_PREFIX}waltid/verifier-api:${VERSION_TAG:-latest}
+    image: waltid/verifier-api:local
     build:
       context: ../
       dockerfile: waltid-services/waltid-verifier-api/Dockerfile
@@ -66,7 +66,7 @@ services:
       - shared-backend
 
   verifier-api2:
-    image: ${IMAGE_PREFIX}waltid/verifier-api2:${VERSION_TAG:-latest}
+    image: waltid/verifier-api2:local
     build:
       context: ../
       dockerfile: waltid-services/waltid-verifier-api2/Dockerfile
