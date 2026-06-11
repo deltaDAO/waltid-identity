@@ -51,6 +51,7 @@ class ExternalEVPForwardPolicy : CredentialWrapperValidatorPolicy() {
         }
         val vpTokenArray = context["vp_token"] as? JsonArray
         val evpJwt = vpTokenArray?.getOrNull(1)?.jsonPrimitive?.content
+            ?: return Result.failure(IllegalStateException("external-evp-forward: no EVP JWT found at vp_token[1]"))
 
         println("the evp jwt being sent is $evpJwt")
         val client = http
@@ -62,7 +63,7 @@ class ExternalEVPForwardPolicy : CredentialWrapperValidatorPolicy() {
 
         return try {
             val response = client.post(url) {
-                header(HttpHeaders.ContentType, ContentType.Application.Any)
+                contentType(ContentType.Text.Plain)
                 setBody(evpJwt)
                 timeout {
                     requestTimeoutMillis = 30 * 1000

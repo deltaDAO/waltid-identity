@@ -80,21 +80,35 @@ class VpRequiredCredentialsPolicy : CredentialWrapperValidatorPolicy() {
 
     private fun collectPresentedTypes(data: JsonObject): List<String> {
         val vcArray = data["vp"]?.jsonObject?.get("verifiableCredential")?.jsonArray
+
+        println("vp_required_credentials: vcArray = $vcArray (size=${vcArray?.size})")
+
         if (vcArray != null) {
-            return vcArray.mapNotNull { vcEl ->
-                val sdJwtStr = vcEl.jsonPrimitive.contentOrNull ?: return@mapNotNull null
-                runCatching { SDJwt.parse(sdJwtStr) }.getOrNull()?.fullPayload?.let { payload ->
-                    payload["vct"]?.jsonPrimitive?.contentOrNull
-                        ?: payload["vc"]?.jsonObject?.get("type")?.jsonArray?.lastOrNull()?.jsonPrimitive?.contentOrNull
+            val types = vcArray.mapNotNull { vcEl ->
+                val sdJwtStr = vcEl.jsonPrimitive.contentOrNull ?: run {
+                    println("vp_required_credentials: VC element is not a primitive string: $vcEl")
+                    return@mapNotNull null
                 }
+                val payload = runCatching { SDJwt.parse(sdJwtStr).fullPayload }.getOrElse { e ->
+                    println("vp_required_credentials: Failed to parse VC JWT: ${e.message}")
+                    return@mapNotNull null
+                }
+                val type = payload["vct"]?.jsonPrimitive?.contentOrNull
+                    ?: payload["vc"]?.jsonObject?.get("type")?.jsonArray?.lastOrNull()?.jsonPrimitive?.contentOrNull
+                    ?: payload["type"]?.jsonArray?.lastOrNull()?.jsonPrimitive?.contentOrNull
+                println("vp_required_credentials: VC payload keys=${payload.keys}, extracted type=$type")
+                type
             }
+            println("vp_required_credentials: presentedTypes = $types")
+            return types
         }
 
         data["vct"]?.jsonPrimitive?.contentOrNull?.let { return listOf(it) }
         data["vc"]?.jsonObject?.get("type")?.jsonArray?.lastOrNull()?.jsonPrimitive?.contentOrNull?.let {
-            return listOf(
-                it
-            )
+            return listOf(it)
+        }
+        data["type"]?.jsonArray?.lastOrNull()?.jsonPrimitive?.contentOrNull?.let {
+            return listOf(it)
         }
 
         return emptyList()
