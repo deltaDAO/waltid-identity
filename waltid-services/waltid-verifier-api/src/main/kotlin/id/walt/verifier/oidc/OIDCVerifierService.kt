@@ -209,7 +209,9 @@ object OIDCVerifierService : OpenIDCredentialVerifier(
                             tokenResponse.presentationSubmission?.toJSON()?.let { "presentationSubmission" to it },
                             "challenge" to (session.authorizationRequest?.nonce ?: ""),
                             "clientId" to (session.authorizationRequest?.clientId ?: ""),
-                            "responseUri" to (session.authorizationRequest?.responseUri ?: "")
+                            "responseUri" to (session.authorizationRequest?.responseUri ?: ""),
+                            tokenResponse.customParameters?.let { "tokenResponseCustomParameters" to JsonObject(it) },
+                            tokenResponse.vpToken?.let { "vp_token" to it }
                         ).toMap()
                     )
                 }
