@@ -156,12 +156,13 @@ object OIDCVerifierService : OpenIDCredentialVerifier(
         val policies = sessionVerificationInfos[session.id]
             ?: throw NotFoundException("Policy listing for session: ${session.id} is missing. Please ensure that the session ID is correct and that the policies have been properly configured.")
 
+        val tokenResponseVpToken = tokenResponse.vpToken
         val vpToken = when (tokenResponse.idToken) {
-            null -> when (tokenResponse.vpToken) {
-                is JsonObject -> tokenResponse.vpToken.toString()
-                is JsonPrimitive -> tokenResponse.vpToken.jsonPrimitive.content
+            null -> when (val vp = tokenResponseVpToken) {
+                is JsonObject -> vp.toString()
+                is JsonPrimitive -> vp.content
                 is JsonArray -> {
-                    val candidates = tokenResponse.vpToken.mapNotNull { it.jsonPrimitive.contentOrNull }
+                    val candidates = vp.mapNotNull { it.jsonPrimitive.contentOrNull }
                     val normalVp = candidates.firstOrNull { token ->
                         runCatching { id.walt.oid4vc.util.JwtUtils.parseJWTPayload(token) }.getOrNull()
                             ?.let { payload ->
@@ -177,7 +178,7 @@ object OIDCVerifierService : OpenIDCredentialVerifier(
                     return false
                 }
 
-                else -> throw IllegalArgumentException("Illegal tokenResponse.vpToken: ${tokenResponse.vpToken}")
+                else -> throw IllegalArgumentException("Illegal tokenResponse.vpToken: $vp")
             }
 
             else -> tokenResponse.idToken.toString()
