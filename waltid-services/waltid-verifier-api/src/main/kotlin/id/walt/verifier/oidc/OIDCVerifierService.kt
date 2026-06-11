@@ -159,7 +159,19 @@ object OIDCVerifierService : OpenIDCredentialVerifier(
         val vpToken = when (tokenResponse.idToken) {
             null -> when (tokenResponse.vpToken) {
                 is JsonObject -> tokenResponse.vpToken.toString()
-                is JsonPrimitive -> tokenResponse.vpToken!!.jsonPrimitive.content
+                is JsonPrimitive -> tokenResponse.vpToken.jsonPrimitive.content
+                is JsonArray -> {
+                    val candidates = tokenResponse.vpToken.mapNotNull { it.jsonPrimitive.contentOrNull }
+                    val normalVp = candidates.firstOrNull { token ->
+                        runCatching { id.walt.oid4vc.util.JwtUtils.parseJWTPayload(token) }.getOrNull()
+                            ?.let { payload ->
+                                val vcs = payload["vp"]?.jsonObject?.get("verifiableCredential")
+                                (vcs as? JsonArray)?.firstOrNull()?.jsonPrimitive?.contentOrNull != null
+                            } ?: false
+                    }
+                    normalVp ?: candidates.firstOrNull()
+                        ?: throw IllegalArgumentException("vp_token array did not contain any usable presentation")
+                }
                 null -> {
                     logger.debug { "Null in tokenResponse.vpToken!" }
                     return false
