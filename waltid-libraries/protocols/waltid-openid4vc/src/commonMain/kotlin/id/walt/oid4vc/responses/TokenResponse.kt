@@ -119,6 +119,21 @@ data class TokenResponse(
             "error_uri"
         )
 
+        private fun parseHttpParameterValue(value: String): JsonElement = try {
+            Json.parseToJsonElement(value).let {
+                if (it is JsonPrimitive && it.isString) {
+                    val content = it.content
+                    if ((content.startsWith("[") && content.endsWith("]")) ||
+                        (content.startsWith("{") && content.endsWith("}"))
+                    ) {
+                        runCatching { Json.parseToJsonElement(content) }.getOrNull() ?: it
+                    } else it
+                } else it
+            }
+        } catch (e: Throwable) {
+            JsonPrimitive(value)
+        }
+
         fun fromHttpParameters(parameters: Map<String, List<String>>): TokenResponse {
             if (isDirectPostJWT(parameters)) throw IllegalArgumentException("The given POST parameters are in direct_post.jwt format, use fromDirectPostJwt instead")
             return TokenResponse(
@@ -126,7 +141,7 @@ data class TokenResponse(
                 parameters["token_type"]?.firstOrNull(),
                 parameters["expires_in"]?.firstOrNull()?.toLong(),
                 parameters["refresh_token"]?.firstOrNull(),
-                parameters["vp_token"]?.firstOrNull()?.let { Json.parseToJsonElement(it) },
+                parameters["vp_token"]?.firstOrNull()?.let { parseHttpParameterValue(it) },
                 parameters["id_token"]?.firstOrNull(),
                 parameters["scope"]?.firstOrNull(),
                 parameters["c_nonce"]?.firstOrNull(),
@@ -140,7 +155,7 @@ data class TokenResponse(
                 parameters["error_uri"]?.firstOrNull(),
                 null,
                 parameters.filter { !knownKeys.contains(it.key) && it.value.isNotEmpty() }
-                    .mapValues { Json.parseToJsonElement(it.value.first()) }
+                    .mapValues { parseHttpParameterValue(it.value.first()) }
             )
         }
 
