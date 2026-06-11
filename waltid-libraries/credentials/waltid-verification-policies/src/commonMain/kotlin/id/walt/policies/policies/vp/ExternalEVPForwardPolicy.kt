@@ -5,10 +5,12 @@ import id.walt.w3c.utils.VCFormat
 import io.github.oshai.kotlinlogging.KotlinLogging.logger
 import io.ktor.client.*
 import io.ktor.client.call.*
+import io.ktor.client.plugins.HttpRedirect
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.*
 import io.ktor.http.*
+import io.ktor.http.content.TextContent
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
@@ -28,6 +30,9 @@ class ExternalEVPForwardPolicy : CredentialWrapperValidatorPolicy() {
     companion object {
         private val http = HttpClient {
             install(ContentNegotiation) { json() }
+            install(HttpRedirect) {
+                checkHttpMethod = false
+            }
         }
     }
 
@@ -63,8 +68,7 @@ class ExternalEVPForwardPolicy : CredentialWrapperValidatorPolicy() {
 
         return try {
             val response = client.post(url) {
-                contentType(ContentType.Text.Plain)
-                setBody(evpJwt)
+                setBody(TextContent(evpJwt, ContentType("application", "jwt")))
                 timeout {
                     requestTimeoutMillis = 30 * 1000
                 }
