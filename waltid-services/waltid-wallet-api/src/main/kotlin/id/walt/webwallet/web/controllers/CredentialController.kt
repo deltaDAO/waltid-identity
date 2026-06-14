@@ -147,7 +147,7 @@ fun Application.credentials() = walletRoute {
                 }
             }) {
                 val credentialId = call.parameters.getOrFail("credentialId")
-                val permanent = call.request.queryParameters["permanent"].toBoolean()
+                val permanent = call.request.queryParameters["permanent"]?.toBoolean() ?: true
                 call.respond(
                     if (call.getWalletService().deleteCredential(
                             credentialId, permanent
