@@ -203,22 +203,6 @@ class SSIKit2WalletService(
         DidsService.get(walletId, associatedDid)
             ?: throw NotFoundException("Associated DID not found in this wallet: $associatedDid")
         
-        val subjectId = when (val cs = vc["credentialSubject"]) {
-            is JsonObject -> cs["id"]?.jsonPrimitive?.content
-            is JsonArray -> cs.firstOrNull()?.jsonObject?.get("id")?.jsonPrimitive?.content
-            else -> null
-        }
-        val subClaim = payloadJson["sub"]?.jsonPrimitive?.content
-
-        val effectiveSubject = subjectId ?: subClaim
-
-        if (effectiveSubject != null && effectiveSubject.startsWith("did:") && effectiveSubject != associatedDid) {
-            throw BadRequestException(
-                "DID mismatch: credential subject '$effectiveSubject' does not match associated DID '$associatedDid'. " +
-                "The credential must be bound to a DID owned by this wallet."
-            )
-        }
-
         payloadJson["nbf"]?.jsonPrimitive?.longOrNull?.let { nbf ->
             if (nbf > System.currentTimeMillis() / 1000) {
                 throw BadRequestException("Credential not yet valid (nbf=$nbf)")
