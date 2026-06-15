@@ -59,6 +59,12 @@ data class TokenResponseFormParam(
 
 const val defaultAuthorizeBaseUrl = "openid4vp://authorize"
 
+internal fun extractStateId(headers: Headers, body: JsonObject): String? =
+    headers["stateId"]
+        ?: body["stateId"]?.jsonPrimitive?.contentOrNull
+        ?: body["sessionId"]?.jsonPrimitive?.contentOrNull
+        ?: body["session_id"]?.jsonPrimitive?.contentOrNull
+
 private val logger = logger("Verifier API")
 
 private const val fixedPresentationDefinitionForEbsiConformanceTest =
@@ -79,12 +85,12 @@ fun Application.verifierApi() {
                 val errorRedirectUri = call.request.header("errorRedirectUri")
                 val statusCallbackUri = call.request.header("statusCallbackUri")
                 val statusCallbackApiKey = call.request.header("statusCallbackApiKey")
-                val stateId = call.request.header("stateId")
                 val openId4VPProfileHeaderParam = call.request.header("openId4VPProfile")
                 // Parse session TTL from header if provided
                 val sessionTtl = call.request.header("sessionTtl")?.toLongOrNull()?.seconds
 
                 val body = call.receive<JsonObject>()
+                val stateId = extractStateId(call.request.headers, body)
 
                 val session = VerifierService.createSession(
                     vpPoliciesJson = body["vp_policies"],
