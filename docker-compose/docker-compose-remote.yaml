@@ -1,6 +1,6 @@
 services:
   wallet-api:
-    image: ${IMAGE_PREFIX}waltid/wallet-api:${VERSION_TAG:-latest}
+    image: ${IMAGE_PREFIX}deltadao/wallet-api:evp2
     profiles:
       - wallet-verifier
       - services
@@ -42,10 +42,7 @@ services:
 
 
   verifier-api:
-    image: waltid/verifier-api:local
-    build:
-      context: ../
-      dockerfile: waltid-services/waltid-verifier-api/Dockerfile
+    image: deltadao/waltid-verifier-api:evp2
     profiles:
       - wallet-verifier
       - services

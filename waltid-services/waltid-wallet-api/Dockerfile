@@ -29,7 +29,7 @@ WORKDIR /home/gradle/src/waltid-services/waltid-wallet-api
 # so total memory stays within Colima's 8 GiB VM.
 ENV GRADLE_OPTS="-Xmx4g -Xms512m -XX:+HeapDumpOnOutOfMemoryError"
 RUN --mount=type=cache,target=/home/gradle/.gradle \
-    gradle buildFatJar --no-daemon --build-cache --max-workers 2
+    gradle buildFatJar --no-daemon --build-cache --max-workers 8
 
 # Stage 3: Create the Runtime Image
 FROM amazoncorretto:22 AS runtime
