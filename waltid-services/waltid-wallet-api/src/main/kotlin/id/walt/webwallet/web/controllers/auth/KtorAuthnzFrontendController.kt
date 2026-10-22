@@ -2,6 +2,7 @@
 
 package id.walt.webwallet.web.controllers.auth
 
+import id.walt.commons.web.ConflictException
 import id.walt.commons.web.UnauthorizedException
 import id.walt.ktorauthnz.KtorAuthnzManager
 import id.walt.ktorauthnz.accounts.identifiers.methods.AccountIdentifier
@@ -18,6 +19,9 @@ import id.walt.ktorauthnz.sessions.SessionManager
 import id.walt.ktorauthnz.sessions.SessionTokenCookieHandler
 import id.walt.webwallet.db.models.Account
 import id.walt.webwallet.db.models.Accounts
+import id.walt.webwallet.db.models.authnz.AuthnzAccountIdentifiers
+import id.walt.webwallet.db.models.authnz.AuthnzStoredData
+import id.walt.webwallet.db.models.authnz.AuthnzUsers
 import id.walt.webwallet.service.account.AccountsService
 import id.walt.webwallet.web.plugins.KTOR_AUTHNZ_CONFIG_NAME
 import io.github.smiley4.ktoropenapi.get
@@ -34,14 +38,25 @@ import io.ktor.server.util.*
 import io.ktor.util.date.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.util.UUID
 import kotlin.time.Clock
 import kotlin.time.toJavaInstant
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 private val logger = logger("AuthnzFrontendController")
+
+private const val MIN_PASSWORD_LENGTH = 8
+
+private fun emailAlreadyRegistered(email: String) = transaction {
+    Accounts.select(Accounts.id).where { Accounts.email eq email }.any() ||
+            AuthnzAccountIdentifiers.select(AuthnzAccountIdentifiers.id)
+                .where { AuthnzAccountIdentifiers.identifier eq email }.any()
+}
 
 private suspend fun ktorAuthnzCreateAccount(
     method: String,
@@ -50,27 +65,51 @@ private suspend fun ktorAuthnzCreateAccount(
     name: String,
     email: String?
 ): Uuid {
-    val createdAccountId = transaction {
-        Accounts.insert {
-            it[Accounts.tenant] = ""
-            it[id] = Uuid.random()
-            it[Accounts.name] = name
-            it[Accounts.email] = email
-            it[Accounts.password] = "!AUTHNZ ACCOUNT"
-            it[createdOn] = Clock.System.now().toJavaInstant()
-        }[Accounts.id]
+    if (email != null && emailAlreadyRegistered(email)) {
+        throw ConflictException("An account with this email address is already registered.")
     }
 
+    // Hash the password (if any) before opening the transaction, as this is a suspending call
+    val savableStoredData = storedData?.transformSavable()
+    val newAccountId = Uuid.random()
+    val newAccountUuid = UUID.fromString(newAccountId.toString())
 
-    KtorAuthnzManager.accountStore.addAccountIdentifierToAccount(createdAccountId.toString(), identifier)
-
-    if (storedData != null) {
-        KtorAuthnzManager.accountStore.addAccountStoredData(createdAccountId.toString(), method, storedData)
+    // Account row, login identifier and stored login data are created together, so a failure
+    // part-way through does not leave an account that cannot be logged into.
+    runCatching {
+        transaction {
+            Accounts.insert {
+                it[Accounts.tenant] = ""
+                it[id] = newAccountId
+                it[Accounts.name] = name
+                it[Accounts.email] = email
+                it[Accounts.password] = "!AUTHNZ ACCOUNT"
+                it[createdOn] = Clock.System.now().toJavaInstant()
+            }
+            AuthnzUsers.insert { it[AuthnzUsers.id] = newAccountUuid }
+            AuthnzAccountIdentifiers.insert {
+                it[userId] = newAccountUuid
+                it[AuthnzAccountIdentifiers.identifier] = identifier.toDataString()
+            }
+            if (savableStoredData != null) {
+                AuthnzStoredData.insert {
+                    it[accountId] = newAccountUuid
+                    it[AuthnzStoredData.method] = method
+                    it[data] = savableStoredData
+                }
+            }
+        }
+    }.onFailure { ex ->
+        // Concurrent sign-up with the same email: the unique index on Accounts.email rejects the second one
+        if (email != null && emailAlreadyRegistered(email)) {
+            throw ConflictException("An account with this email address is already registered.")
+        }
+        throw ex
     }
 
-    AccountsService.initializeUserAccount(tenant = "", name = name, registeredUserId = createdAccountId)
+    AccountsService.initializeUserAccount(tenant = "", name = name, registeredUserId = newAccountId)
 
-    return createdAccountId
+    return newAccountId
 }
 
 @Serializable
@@ -173,12 +212,17 @@ fun Application.ktorAuthnzFrontendRoutes() {
             }) {
                 logger.trace { "Fake register called" }
                 val registerData = call.receive<RegisterCall>()
-                val name = registerData.name
-                val email = registerData.email
+                val name = registerData.name.trim()
+                val email = registerData.email.trim()
                 val password = registerData.password
                 val type = registerData.type
 
                 require(type == "email") { "Only implemented for email login" }
+                require(name.isNotBlank()) { "Please enter a name." }
+                require(email.isNotBlank()) { "Please enter an email address." }
+                require(password.length >= MIN_PASSWORD_LENGTH) {
+                    "The password must be at least $MIN_PASSWORD_LENGTH characters long."
+                }
 
                 val createdAccountId = ktorAuthnzCreateAccount(
                     method = "email",

@@ -9,6 +9,9 @@ COPY waltid-applications/waltid-web-wallet/apps/waltid-dev-wallet/package.json .
 RUN cd apps/waltid-dev-wallet && npm install
 
 COPY waltid-applications/waltid-web-wallet .
+# Sign in through the wallet API's ktor-authnz login (email + web3). Read at build time by nuxt.config.ts.
+ARG NUXT_PUBLIC_AUTH_USE_KTORAUTHNZ=true
+ENV NUXT_PUBLIC_AUTH_USE_KTORAUTHNZ=$NUXT_PUBLIC_AUTH_USE_KTORAUTHNZ
 RUN cd apps/waltid-dev-wallet && npm run build
 
 # copy build output into final image

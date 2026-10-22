@@ -83,6 +83,7 @@ dependencies {
     implementation(project(":waltid-libraries:credentials:waltid-dif-definitions-parser"))
 
     implementation(project(":waltid-libraries:auth:waltid-ktor-authnz"))
+    testImplementation("org.web3j:core:5.0.2") // signing web3 login challenges in tests
 
     testImplementation(project(":waltid-services:waltid-issuer-api"))
     testImplementation(project(":waltid-services:waltid-verifier-api"))
